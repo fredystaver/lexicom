@@ -1,0 +1,22 @@
+version: "3.9"
+
+networks:
+  service_network:
+
+services:
+  api:
+    networks:
+      - service_network
+    container_name: api_task_1
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    stdin_open: true
+    command: [ "python", "-m", "task_1" ]
+
+  redis:
+    networks:
+      - service_network
+    image: redis:7.4-alpine
+    container_name: redis
