@@ -1,152 +1,144 @@
 # 1 Вариант (SQL)
+
 ```
 CREATE TABLE short_names (
-id SERIAL PRIMARY KEY,
-name VARCHAR(255) UNIQUE,
-status INTEGER
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE,
+    status INTEGER
 );
 
 INSERT INTO short_names (name, status)
-SELECT "nazvanie" || i AS name,
-(RANDOM() * 2)::INT AS status
+SELECT
+    'nazvanie' || i AS name,
+    (RANDOM() * 2)::INT AS status
 FROM generate_series(1, 700000) AS s(i);
 
+-- Создание таблицы full_names
 CREATE TABLE full_names (
-id SERIAL PRIMARY KEY,
-name VARCHAR(255) UNIQUE,
-status INTEGER DEFAULT NULL,
-base_name VARCHAR(255)
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE,
+    status INTEGER DEFAULT NULL,
+    base_name VARCHAR(255) -- Новый столбец для базового имени
 );
 
 CREATE INDEX idx_base_name ON full_names (base_name);
 
 INSERT INTO full_names (name)
-SELECT "nazvanie" || i || ext.extension AS name
+SELECT
+    'nazvanie' || i || ext.extension AS name
 FROM generate_series(1, 500000) AS s(i),
-LATERAL (VALUES (".mp3"), (".wav"), (".flac"), (".aac")) AS ext(extension)
+LATERAL (VALUES ('.mp3'), ('.wav'), ('.flac'), ('.aac')) AS ext(extension)
 ORDER BY RANDOM()
 LIMIT 500000;
 
 UPDATE full_names
-SET base_name = LEFT(name, LENGTH(name) - POSITION("." IN REVERSE(name)));
+SET base_name = LEFT(name, LENGTH(name) - POSITION('.' IN REVERSE(name)));
 
 DELETE FROM full_names
-WHERE id NOT IN ( SELECT MIN(id) FROM full_names GROUP BY base_name);
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM full_names
+    GROUP BY base_name
+);
 
 UPDATE full_names AS f_n
 SET status = s_n.status
 FROM short_names AS s_n
-WHERE f_n.base_name = s_n.name;
+WHERE LEFT(f_n.name, LENGTH(f_n.name) - LENGTH(SUBSTRING(f_n.name FROM '\.[^\.]+$'))) = s_n.name;
+
+ALTER TABLE full_names DROP COLUMN base_name;
+
 ```
+
 # 2 Вариант (Python)
 
 ```
-import time
 import psycopg2
+import time
 
-def execute_with_pause(cursor, query, limit=50000) -> None:
-    offset = 0 while True: batch_query = query.format(offset=offset, limit=limit)
-    cursor.execute(batch_query)
-    if cursor.rowcount < limit:
-        break
-    time.sleep(1)
-    offset += limit
 
-def main(
-    query1, query2, query3, query4, query5, query6, query7, query8, query9
-    ) -> None:
+def create_tables(cursor):
+    # Создание таблицы short_names
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS short_names (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) UNIQUE,
+        status INTEGER
+    );
+    """)
+
+    # Создание таблицы full_names
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS full_names (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) UNIQUE,
+        status INTEGER DEFAULT NULL
+    );
+    """)
+
+
+def insert_data_into_short_names(cursor):
+    # Вставка данных в таблицу short_names
+    cursor.execute("""
+    INSERT INTO short_names (name, status)
+    SELECT
+        'nazvanie' || i AS name,
+        (RANDOM() * 2)::INT AS status
+    FROM generate_series(1, 700000) AS s(i)
+    ON CONFLICT (name) DO NOTHING;
+    """)
+
+
+def insert_data_into_full_names(cursor):
+    # Вставка данных в таблицу full_names с расширениями
+    cursor.execute("""
+    INSERT INTO full_names (name)
+    SELECT
+        'nazvanie' || i || ext.extension AS name
+    FROM generate_series(1, 500000) AS s(i),
+    LATERAL (VALUES ('.mp3'), ('.wav'), ('.flac'), ('.aac')) AS ext(extension)
+    ON CONFLICT (name) DO NOTHING;
+    """)
+
+
+def update_status_in_full_names(cursor):
+    # Обновление статусов в таблице full_names на основе данных из short_names
+    cursor.execute("""
+    UPDATE full_names AS f_n
+    SET status = s_n.status
+    FROM short_names AS s_n
+    WHERE LEFT(f_n.name, LENGTH(f_n.name) - LENGTH(SUBSTRING(f_n.name FROM '\\.[^\\.]+$'))) = s_n.name;
+    """)
+
+
+def main():
     with psycopg2.connect(
         host="localhost",
         port="5432",
         database="postgres",
         user="postgres",
         password="postgres",
-        ) as connection:
-        with  connection.cursor() as cursor:
-            cursor.execute(query=query1)
-            cursor.execute(query=query2)
-            cursor.execute(query=query3)
-            cursor.execute(query=query4)
-            cursor.execute(query=query5)
-            cursor.execute(query=query6)
-            cursor.execute(query=query7)
-            cursor.execute(query=query8)
+    ) as connection:
+        with connection.cursor() as cursor:
+            start_time = time.time()
 
-        execute_with_pause(cursor, query9)
+            create_tables(cursor)
+            connection.commit()
 
-    connection.commit()
+            insert_data_into_short_names(cursor)
+            connection.commit()
 
-create_short_names_table = """
-CREATE TABLE IF NOT EXISTS short_names (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) UNIQUE,
-    status INTEGER
-);
-"""
+            insert_data_into_full_names(cursor)
+            connection.commit()
 
-insert_short_names = """
-INSERT INTO short_names (name, status)
-    SELECT "nazvanie" || i AS name,
-    (RANDOM() * 2)::INT AS
-    status FROM generate_series(1, 700000) AS s(i);
-"""
+            update_status_in_full_names(cursor)
+            connection.commit()
 
-create_full_names_table = """
-CREATE TABLE IF NOT EXISTS full_names (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) UNIQUE,
-    status INTEGER DEFAULT NULL,
-    base_name VARCHAR(255)); 
-"""
+            end_time = time.time()
+            print(f"Скрипт выполнен за {end_time - start_time} секунд.")
 
-set_index = """
-CREATE INDEX IF NOT EXISTS idx_base_name ON full_names (base_name);
-"""
 
-insert_full_names = """
-INSERT INTO full_names (name)
-    SELECT "nazvanie" || i || ext.extension AS name
-    FROM
-        generate_series(1, 500000) AS s(i),
-        LATERAL (VALUES (".mp3"), (".wav"), (".flac"), (".aac")) AS ext(extension)
-        ORDER BY RANDOM() LIMIT 500000;
-        """
+if __name__ == "__main__":
+    main()
 
-insert_in_base_name = """
-UPDATE full_names
-    SET base_name = LEFT(name, LENGTH(name) - POSITION("." IN REVERSE(name)));
-"""
-
-delete_dublicates = """
-DELETE FROM full_names
-    WHERE id NOT IN ( SELECT MIN(id)
-    FROM full_names
-    GROUP BY base_name );
-"""
-
-update_statuses = """
-UPDATE full_names f_n
-    SET status = tmp.status
-    FROM tmp_updates tmp
-        WHERE f_n.id = tmp.id;
-"""
-
-create_temp_table = """
-CREATE TEMP TABLE tmp_updates AS
-    SELECT
-    f_n.id, s_n.status
-    FROM full_names f_n JOIN short_names s_n ON f_n.base_name = s_n.name;
- """
-
-main(
-    create_short_names_table,
-    insert_short_names,
-    create_full_names_table,
-    set_index,
-    insert_full_names,
-    insert_in_base_name,
-    delete_dublicates,
-    create_temp_table,
-    update_statuses,
-)
 ```
