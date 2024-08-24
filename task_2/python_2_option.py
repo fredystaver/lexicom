@@ -3,7 +3,6 @@ import time
 
 
 def create_tables(cursor):
-    # Создание таблицы short_names
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS short_names (
         id SERIAL PRIMARY KEY,
@@ -12,7 +11,6 @@ def create_tables(cursor):
     );
     """)
 
-    # Создание таблицы full_names
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS full_names (
         id SERIAL PRIMARY KEY,
@@ -23,7 +21,6 @@ def create_tables(cursor):
 
 
 def insert_data_into_short_names(cursor):
-    # Вставка данных в таблицу short_names
     cursor.execute("""
     INSERT INTO short_names (name, status)
     SELECT
@@ -35,7 +32,6 @@ def insert_data_into_short_names(cursor):
 
 
 def insert_data_into_full_names(cursor):
-    # Вставка данных в таблицу full_names с расширениями
     cursor.execute("""
     INSERT INTO full_names (name)
     SELECT
@@ -47,7 +43,6 @@ def insert_data_into_full_names(cursor):
 
 
 def update_status_in_full_names(cursor):
-    # Обновление статусов в таблице full_names на основе данных из short_names
     cursor.execute("""
     UPDATE full_names AS f_n
     SET status = s_n.status
@@ -80,7 +75,7 @@ def main():
             connection.commit()
 
             end_time = time.time()
-            print(f"Скрипт выполнен за {end_time - start_time} секунд.")
+            print(f"Время выполнения: {end_time - start_time} секунд.")
 
 
 if __name__ == "__main__":
