@@ -40,4 +40,6 @@ WHERE id NOT IN (
 UPDATE full_names AS f_n
 SET status = s_n.status
 FROM short_names AS s_n
-WHERE f_n.base_name = s_n.name;
+WHERE LEFT(f_n.name, LENGTH(f_n.name) - LENGTH(SUBSTRING(f_n.name FROM '\.[^\.]+$'))) = s_n.name;
+
+ALTER TABLE full_names DROP COLUMN base_name;
