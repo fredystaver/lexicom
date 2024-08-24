@@ -1,5 +1,5 @@
 # 1 Вариант (SQL)
-
+### Скрипт выполняется примерно 3 минуты
 ```
 CREATE TABLE short_names (
     id SERIAL PRIMARY KEY,
@@ -51,7 +51,7 @@ ALTER TABLE full_names DROP COLUMN base_name;
 ```
 
 # 2 Вариант (Python)
-
+### Скрипт выполняется примерно 6-7 минуты
 ```
 import psycopg2
 import time
